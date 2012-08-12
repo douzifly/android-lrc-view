@@ -28,5 +28,5 @@ TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
 
-![Image 1](http://files.note.sdo.com/_VS-b~k2vftwLX0JE001Mo)
-![Image 1](http://files.note.sdo.com/_VS-b~k2vfwwLX0JE001Mq)
+![Image 1](https://raw.github.com/douzifly/Android-LrcView/31e40ce0a2c7db6fdf7e906fe0e4f7ea61d3b4d0/snap1.jpeg)
+![Image 2](https://raw.github.com/douzifly/Android-LrcView/31e40ce0a2c7db6fdf7e906fe0e4f7ea61d3b4d0/snap2.jpeg)
