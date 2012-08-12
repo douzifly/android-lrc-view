@@ -1,4 +1,4 @@
-LrcView can parse standard file,and display lrc file.Use single touch to seek progress and multi touch to scale font size.
+LrcView can parse and display standard lrc file.Use single touch to seek progress and multi touch to scale font size.
 
 Copyright 2012 (c) Xiaoyuan Lau douzifly@gmail.com
 
