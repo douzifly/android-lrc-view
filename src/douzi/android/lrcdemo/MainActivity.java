@@ -10,14 +10,14 @@ import android.media.MediaPlayer.OnPreparedListener;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
-import douzi.android.view.LrcView;
-import douzi.android.view.LrcView.LrcRow;
-import douzi.android.view.LrcView.OnLrcViewListener;
+import douzi.android.view.LrcView1;
+import douzi.android.view.LrcView1.LrcRow;
+import douzi.android.view.LrcView1.OnLrcViewListener;
 
 public class MainActivity extends Activity {
 
 	public final static String TAG = "MainActivity";
-	LrcView mLrcView;
+	LrcView1 mLrcView;
 	MediaPlayer mPlayer;
 	private boolean mIsPlaying = false;
 	
@@ -25,7 +25,7 @@ public class MainActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mLrcView = new LrcView(this, null);
+        mLrcView = new LrcView1(this, null);
         mLrcView.setBackgroundResource(R.drawable.jb_bg);
         setContentView(mLrcView);
         String path = "/sdcard/xue.lrc";
@@ -70,6 +70,7 @@ public class MainActivity extends Activity {
 					}
 				}
 			}
+
 		});
         
         mPlayer.prepareAsync();

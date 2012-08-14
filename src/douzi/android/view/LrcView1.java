@@ -13,23 +13,32 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import android.content.Context;
+import android.graphics.AvoidXfermode.Mode;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Paint.Align;
+import android.graphics.PixelFormat;
+import android.graphics.drawable.Drawable;
 import android.graphics.PointF;
 import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.Message;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.view.View;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
 /**
  * LrcView can display LRC file and Seek it.
+ * Use SurfaceView for improve performance and scroll smooth.
  * @author douzifly
  *
  */
-public class LrcView extends View{
+public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 	
 	public final static String TAG = "LrcView";
 	
@@ -58,15 +67,18 @@ public class LrcView extends View{
 	private int mSeekLinePaddingX = 0; // Seek line padding x
 	private int mDisplayMode = DISPLAY_MODE_NORMAL;
 	private OnLrcViewListener mLrcViewListener;
-	private int mPalyTimerDuration = 200;
+	private int mPalyTimerDuration = 50;
 	private String mLoadingLrcTip = "Downloading lrc...";
 	
 	private Paint mPaint;
 	
-	public LrcView(Context context,AttributeSet attr){
+	public LrcView1(Context context,AttributeSet attr){
 		super(context,attr);
 		mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		mPaint.setTextSize(mLrcFontSize);
+		getHolder().addCallback(this);
+		setZOrderOnTop(true);
+		getHolder().setFormat(PixelFormat.TRANSPARENT);
 	}
 	
 	public void setOnLrcViewSeekListener(OnLrcViewListener l){
@@ -86,6 +98,7 @@ public class LrcView extends View{
 			mLrcBuilder = new DefaultLrcBuilder();
 		}
 	}
+	
 	
 	private Timer mTimer;
 	private TimerTask mTask;
@@ -117,14 +130,16 @@ public class LrcView extends View{
 			}
 			Date date = new Date();
 			mPassedTime = date.getTime() - mStartTime + mSeekOffset;
-			Log.d(TAG,"timePassed:"+mPassedTime);
+			//Log.d(TAG,"timePassed:"+mPassedTime);
 			int i = mHignlightRow;
 			for(; i < mLrcRows.size() ; i++){
 				long time = mLrcRows.get(i).time;
 				if(time < mPassedTime + mPalyTimerDuration && time > mPassedTime - mPalyTimerDuration){
 					mHignlightRow = i;
 					if(mHignlightRow != mPrevHighlihgtRow){
-						postInvalidate();
+					    if(!mAnimating){
+					        invalidate();
+					    }
 						mPrevHighlihgtRow = mHignlightRow;
 					}
 					break;
@@ -184,9 +199,15 @@ public class LrcView extends View{
 		
 	}
 	
-	@Override
-	protected void onDraw(Canvas canvas) {
-		Log.d(TAG,"onDraw");
+	private int mTargetHighlightRowY = 0;  // when change highlight row , final y offset
+	private int mCurrentHighlightRowY = 0; // when change highlight row , do smooth scroll, record current
+	                                       // y offset 
+	
+	private boolean mAnimating = false;    // indicate whether is smooth scrolling.
+	protected void drawLrc(Canvas canvas) {
+		//Log.d(TAG,"drawLrc");
+		canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
+		
 		final int height = getHeight(); // height of this view
 		final int width = getWidth() ; // width of this view
 		if(mLrcRows == null || mLrcRows.size() == 0){
@@ -210,20 +231,30 @@ public class LrcView extends View{
 		
 		// 1 highlight row
 		String highlightText = mLrcRows.get(mHignlightRow).content;
-		int highlightRowY = height / 2 - mLrcFontSize;
+		if(!mAnimating && mDisplayMode == DISPLAY_MODE_NORMAL){
+			Log.i(TAG, "begin animating");
+		    mTargetHighlightRowY = height / 2 - mLrcFontSize;
+		    mCurrentHighlightRowY = mTargetHighlightRowY + mLrcFontSize;
+		    mAnimating = true;
+		}else if(mDisplayMode == DISPLAY_MODE_SEEK || mDisplayMode == DISPLAY_MODE_SCALE){
+		    mCurrentHighlightRowY = mTargetHighlightRowY;
+		}
+		
+		
+		Log.d(TAG, "mCurrentHighlightRowY:" + mCurrentHighlightRowY + " tagetY:" + mTargetHighlightRowY);
 		mPaint.setColor(mHignlightRowColor);
 		mPaint.setTextSize(mLrcFontSize);
 		mPaint.setTextAlign(Align.CENTER);
-		canvas.drawText(highlightText, rowX, highlightRowY, mPaint);
+		canvas.drawText(highlightText, rowX, mCurrentHighlightRowY, mPaint);
 
 		if(mDisplayMode == DISPLAY_MODE_SEEK){
 			// draw Seek line and current time when moving.
 			mPaint.setColor(mSeekLineColor);
-			canvas.drawLine(mSeekLinePaddingX, highlightRowY, width - mSeekLinePaddingX, highlightRowY, mPaint);
+			canvas.drawLine(mSeekLinePaddingX, mCurrentHighlightRowY, width - mSeekLinePaddingX, mCurrentHighlightRowY, mPaint);
 			mPaint.setColor(mSeekLineTextColor);
 			mPaint.setTextSize(mSeekLineTextSize);
 			mPaint.setTextAlign(Align.LEFT);
-			canvas.drawText(mLrcRows.get(mHignlightRow).strTime, 0, highlightRowY, mPaint);
+			canvas.drawText(mLrcRows.get(mHignlightRow).strTime, 0, mCurrentHighlightRowY, mPaint);
 		}
 		
 		// 2 above rows
@@ -231,7 +262,7 @@ public class LrcView extends View{
 		mPaint.setTextSize(mLrcFontSize);
 		mPaint.setTextAlign(Align.CENTER);
 		rowNum = mHignlightRow - 1;
-		rowY = highlightRowY - mPaddingY - mLrcFontSize;
+		rowY = mCurrentHighlightRowY - mPaddingY - mLrcFontSize;
 		while( rowY > -mLrcFontSize && rowNum >= 0){
 			String text = mLrcRows.get(rowNum).content;
 			canvas.drawText(text, rowX, rowY, mPaint);
@@ -241,13 +272,25 @@ public class LrcView extends View{
 		
 		// 3 below rows
 		rowNum = mHignlightRow + 1;
-		rowY = highlightRowY + mPaddingY + mLrcFontSize;
+		rowY = mCurrentHighlightRowY + mPaddingY + mLrcFontSize;
 		while( rowY < height && rowNum < mLrcRows.size()){
 			String text = mLrcRows.get(rowNum).content;
 			canvas.drawText(text, rowX, rowY, mPaint);
 			rowY += (mPaddingY + mLrcFontSize);
 			rowNum ++;
 		}
+		
+		if(mAnimating && mCurrentHighlightRowY >= mTargetHighlightRowY && mDisplayMode == DISPLAY_MODE_NORMAL){
+			if(mCurrentHighlightRowY == mTargetHighlightRowY){
+				Log.i(TAG, "stop animating");
+				mAnimating = false;
+				return;
+			}
+			//Log.d(TAG, "animating");
+			invalidate();
+			mCurrentHighlightRowY--;
+		}
+		
 	}
 	
 	private void seekTo(int row){
@@ -262,7 +305,7 @@ public class LrcView extends View{
 	private PointF mPointerOneLastMotion = new PointF();
 	private PointF mPointerTwoLastMotion = new PointF();
 	private boolean mIsFirstMove = false; // whether is first move , some events can't not detected in touch down, 
-										  // such as two pointer touch, so it's good place to detect it in first move
+	                                      // such as two pointer touch, so it's good place to detect it in first move
 	
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
@@ -440,7 +483,7 @@ public class LrcView extends View{
 				// times [mm:ss.SS][mm:ss.SS] -> *mm:ss.SS**mm:ss.SS*
 				String times = standardLrcLine.substring(0,lastIndexOfRightBracket + 1).replace("[", "-").replace("]", "-");
 				String arrTimes[] = times.split("-");
-				List<LrcRow> listTimes = new ArrayList<LrcView.LrcRow>();
+				List<LrcRow> listTimes = new ArrayList<LrcView1.LrcRow>();
 				for(String temp : arrTimes){
 					if(temp.trim().length() == 0){
 						continue;
@@ -484,7 +527,7 @@ public class LrcView extends View{
 			StringReader reader = new StringReader(rawLrc);
 			BufferedReader br = new BufferedReader(reader);
 			String line = null;
-			List<LrcRow> rows = new ArrayList<LrcView.LrcRow>();
+			List<LrcRow> rows = new ArrayList<LrcView1.LrcRow>();
 			try{
 				do{
 					line = br.readLine();
@@ -568,6 +611,78 @@ public class LrcView extends View{
 		
 		/** called after lrc load complete,maybe failed */
 		public void didLrcLoad(boolean sucess);
+	}
+
+	private RendererThread mRendererThread;
+	
+	public void surfaceChanged(SurfaceHolder holder, int format, int width,
+			int height) {
+		invalidate();
+	}
+
+	public void surfaceCreated(SurfaceHolder holder) {
+		if(mRendererThread == null){
+			mRendererThread = new RendererThread("Renderer");
+			mRendererThread.start();
+		}
+	}
+
+	public void surfaceDestroyed(SurfaceHolder holder) {
+		if(mRendererThread != null){
+			mRendererThread.interrupt();
+			mRendererThread = null;
+		}
+	}
+	
+	
+	private class RendererThread extends HandlerThread{
+		
+		public RendererThread(String name) {
+			super(name);
+		}
+		
+		@Override
+		public synchronized void start() {
+			super.start();
+			hander = new RendererHandler(getLooper());
+		}
+		
+		private RendererHandler hander;
+		
+		public void invalidate(){
+			if(hander != null){
+				hander.sendEmptyMessage(0);
+			}
+		}
+	}
+	
+	private class RendererHandler extends Handler{
+		
+		public RendererHandler(Looper looper){
+			super(looper);
+		}
+		
+		@Override
+		public void handleMessage(Message msg) {
+			
+			SurfaceHolder holder = getHolder();
+			if(holder == null){
+				return;
+			}
+			Canvas canvas = holder.lockCanvas();
+			if(canvas == null){
+				return;
+			}
+			drawLrc(canvas);
+			holder.unlockCanvasAndPost(canvas);
+		}
+	}
+	
+	@Override
+	public void invalidate() {
+		if(mRendererThread != null){
+			mRendererThread.invalidate();
+		}
 	}
 	
 }
