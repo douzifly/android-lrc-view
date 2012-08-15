@@ -40,7 +40,7 @@ import android.view.SurfaceView;
  */
 public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 	
-	public final static String TAG = "LrcView";
+	public final static String TAG = "LrcView1";
 	
 	/** normal display mode*/
 	public final static int DISPLAY_MODE_NORMAL = 0;
@@ -137,9 +137,23 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 				if(time < mPassedTime + mPalyTimerDuration && time > mPassedTime - mPalyTimerDuration){
 					mHignlightRow = i;
 					if(mHignlightRow != mPrevHighlihgtRow){
-					    if(!mAnimating){
-					        invalidate();
+					    Log.i(TAG, "hrow:" + mHignlightRow + " phrow:" + mPrevHighlihgtRow + " anim invalidate");
+					    int height = getHeight();
+					    if(height <= 0){
+					        return;
 					    }
+					    mTargetHighlightRowY = height / 2 - mLrcFontSize;
+					    if(mCurrentHighlightRowY == mTargetHighlightRowY){
+					        // after seek or scale , mCurrentHighlightRowY == mTargetHighlightRowY, and this time,
+					        // don't do animation
+					        mAnimating = false;
+					        mCurrentHighlightRowY = 0;
+					        // do not invalidate here
+					    }else{
+					        mAnimating = true;
+					        mCurrentHighlightRowY = mTargetHighlightRowY + mLrcFontSize;
+					        invalidate();
+					    }        
 						mPrevHighlihgtRow = mHignlightRow;
 					}
 					break;
@@ -200,13 +214,14 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 	}
 	
 	private int mTargetHighlightRowY = 0;  // when change highlight row , final y offset
-	private int mCurrentHighlightRowY = 0; // when change highlight row , do smooth scroll, record current
+	private int mCurrentHighlightRowY = -1; // when change highlight row , do smooth scroll, record current
 	                                       // y offset 
 	
 	private boolean mAnimating = false;    // indicate whether is smooth scrolling.
 	protected void drawLrc(Canvas canvas) {
 		//Log.d(TAG,"drawLrc");
 		canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
+		
 		
 		final int height = getHeight(); // height of this view
 		final int width = getWidth() ; // width of this view
@@ -231,17 +246,17 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 		
 		// 1 highlight row
 		String highlightText = mLrcRows.get(mHignlightRow).content;
-		if(!mAnimating && mDisplayMode == DISPLAY_MODE_NORMAL){
-			Log.i(TAG, "begin animating");
-		    mTargetHighlightRowY = height / 2 - mLrcFontSize;
-		    mCurrentHighlightRowY = mTargetHighlightRowY + mLrcFontSize;
-		    mAnimating = true;
-		}else if(mDisplayMode == DISPLAY_MODE_SEEK || mDisplayMode == DISPLAY_MODE_SCALE){
-		    mCurrentHighlightRowY = mTargetHighlightRowY;
+		
+		if(!mAnimating){
+            mCurrentHighlightRowY = mTargetHighlightRowY;
+        }
+		
+		if(mCurrentHighlightRowY <=0 ){
+		    return;
 		}
 		
 		
-		Log.d(TAG, "mCurrentHighlightRowY:" + mCurrentHighlightRowY + " tagetY:" + mTargetHighlightRowY);
+		//Log.d(TAG, "mCurrentHighlightRowY:" + mCurrentHighlightRowY + " tagetY:" + mTargetHighlightRowY + " anim:" + mAnimating ) ;
 		mPaint.setColor(mHignlightRowColor);
 		mPaint.setTextSize(mLrcFontSize);
 		mPaint.setTextAlign(Align.CENTER);
@@ -280,10 +295,11 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 			rowNum ++;
 		}
 		
-		if(mAnimating && mCurrentHighlightRowY >= mTargetHighlightRowY && mDisplayMode == DISPLAY_MODE_NORMAL){
+		if(mAnimating){
 			if(mCurrentHighlightRowY == mTargetHighlightRowY){
 				Log.i(TAG, "stop animating");
 				mAnimating = false;
+				mCurrentHighlightRowY = 0;
 				return;
 			}
 			//Log.d(TAG, "animating");
@@ -324,11 +340,11 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 		case MotionEvent.ACTION_MOVE:
 			
 			if(event.getPointerCount() == 2){
-				Log.d(TAG, "two move");
+			//	Log.d(TAG, "two move");
 				doScale(event);
 				return true;
 			}
-			Log.d(TAG, "one move");
+			//Log.d(TAG, "one move");
 			// single pointer mode ,seek
 			if(mDisplayMode == DISPLAY_MODE_SCALE){
 				 //if scaling but pointer become not two ,do nothing.
@@ -356,6 +372,7 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 			Log.d(TAG, "two move but teaking ...change mode");
 			return;
 		}
+		mAnimating = false;
 		// two pointer mode , scale font
 		if(mIsFirstMove){
 			mDisplayMode = DISPLAY_MODE_SCALE;
@@ -379,9 +396,10 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 			// move to short ,do not fire seek action
 			return;
 		}
+		mAnimating = false;
 		mDisplayMode = DISPLAY_MODE_SEEK;
 		int rowOffset = Math.abs((int) offsetY / mLrcFontSize); // highlight row offset. 
-		Log.d(TAG, "move new hightlightrow : " + mHignlightRow + " offsetY: " + offsetY + " rowOffset:" + rowOffset);
+		//Log.d(TAG, "move new hightlightrow : " + mHignlightRow + " offsetY: " + offsetY + " rowOffset:" + rowOffset);
 		if(offsetY < 0){
 			// finger move up
 			mHignlightRow += rowOffset;
@@ -653,6 +671,12 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 			if(hander != null){
 				hander.sendEmptyMessage(0);
 			}
+		}
+		
+		public void invalidateAndResetCurrentY(){
+		    if(hander != null){
+                hander.sendEmptyMessage(1);
+            }
 		}
 	}
 	
