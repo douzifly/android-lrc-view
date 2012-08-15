@@ -148,6 +148,11 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 				// last row
 				stopLrcPlay();
 			}
+			
+			if(mDisplayMode != DISPLAY_MODE_NORMAL){
+			    return;
+			}
+			
 			Date date = new Date();
 			mPassedTime = date.getTime() - mStartTime + mSeekOffset;
 			//Log.d(TAG,"timePassed:"+mPassedTime);
@@ -227,7 +232,6 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 	protected void drawLrc(Canvas canvas) {
 		//Log.d(TAG,"drawLrc");
 		canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
-		
 		
 		final int height = getHeight(); // height of this view
 		final int width = getWidth() ; // width of this view
@@ -641,10 +645,12 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 	
 	public void surfaceChanged(SurfaceHolder holder, int format, int width,
 			int height) {
+		Log.d(TAG,"surfaceChanged");
 		invalidate();
 	}
 
 	public void surfaceCreated(SurfaceHolder holder) {
+		Log.d(TAG,"surfaceCreated");
 		if(mRendererThread == null){
 			mRendererThread = new RendererThread("Renderer");
 			mRendererThread.start();
@@ -652,6 +658,7 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 	}
 
 	public void surfaceDestroyed(SurfaceHolder holder) {
+		Log.d(TAG,"surfaceDestroyed");
 		if(mRendererThread != null){
 			mRendererThread.interrupt();
 			mRendererThread = null;
@@ -671,18 +678,18 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 			hander = new RendererHandler(getLooper());
 		}
 		
+		@Override
+		public void interrupt() {
+		    super.interrupt();
+		    hander = null;
+		}
+		
 		private RendererHandler hander;
 		
 		public void invalidate(){
 			if(hander != null){
 				hander.sendEmptyMessage(0);
 			}
-		}
-		
-		public void invalidateAndResetCurrentY(){
-		    if(hander != null){
-                hander.sendEmptyMessage(1);
-            }
 		}
 	}
 	
