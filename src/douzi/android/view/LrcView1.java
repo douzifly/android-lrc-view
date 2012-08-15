@@ -211,7 +211,7 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 		@Override
 		protected void onPostExecute(Void result) {
 			scrollBegin();
-			invalidate();
+			//invalidate();
 			if(mLrcViewListener != null){
 				mLrcViewListener.didLrcLoad(mLrcRows != null);
 			}
