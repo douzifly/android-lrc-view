@@ -114,6 +114,26 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 		beginLrcPlay();
 	}
 	
+	// calculate whether need animation and invalidate canvas
+	private void scrollBegin() {
+		int height = getHeight();
+		if(height <= 0){
+		    return;
+		}
+		mTargetHighlightRowY = height / 2 - mLrcFontSize;
+		if(mCurrentHighlightRowY == mTargetHighlightRowY){
+		    // after seek or scale , mCurrentHighlightRowY == mTargetHighlightRowY, and this time,
+		    // don't do animation
+		    mAnimating = false;
+		    mCurrentHighlightRowY = 0;
+		    // do not invalidate here
+		}else{
+		    mAnimating = true;
+		    mCurrentHighlightRowY = mTargetHighlightRowY + mLrcFontSize;
+		    invalidate();
+		}
+	}
+	
 	class LrcTask extends TimerTask{
 		boolean firstRun = true;
 		
@@ -138,22 +158,7 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 					mHignlightRow = i;
 					if(mHignlightRow != mPrevHighlihgtRow){
 					    Log.i(TAG, "hrow:" + mHignlightRow + " phrow:" + mPrevHighlihgtRow + " anim invalidate");
-					    int height = getHeight();
-					    if(height <= 0){
-					        return;
-					    }
-					    mTargetHighlightRowY = height / 2 - mLrcFontSize;
-					    if(mCurrentHighlightRowY == mTargetHighlightRowY){
-					        // after seek or scale , mCurrentHighlightRowY == mTargetHighlightRowY, and this time,
-					        // don't do animation
-					        mAnimating = false;
-					        mCurrentHighlightRowY = 0;
-					        // do not invalidate here
-					    }else{
-					        mAnimating = true;
-					        mCurrentHighlightRowY = mTargetHighlightRowY + mLrcFontSize;
-					        invalidate();
-					    }        
+					    scrollBegin();        
 						mPrevHighlihgtRow = mHignlightRow;
 					}
 					break;
@@ -205,6 +210,7 @@ public class LrcView1 extends SurfaceView implements SurfaceHolder.Callback{
 		
 		@Override
 		protected void onPostExecute(Void result) {
+			scrollBegin();
 			invalidate();
 			if(mLrcViewListener != null){
 				mLrcViewListener.didLrcLoad(mLrcRows != null);
