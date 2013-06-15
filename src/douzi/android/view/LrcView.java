@@ -160,6 +160,12 @@ public class LrcView extends View{
 		new LoadLrcTask().execute(lrcFile);
 	}
 	
+	public void loadLrc(String lrc){
+		checkLrcBuilder();
+		mLrcRows = mLrcBuilder.getLrcRows(lrc);
+		invalidate();
+	}
+	
 	class LoadLrcTask extends AsyncTask<File, Void, Void>{
 
 		@Override

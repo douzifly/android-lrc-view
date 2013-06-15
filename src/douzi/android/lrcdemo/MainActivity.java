@@ -1,7 +1,9 @@
 package douzi.android.lrcdemo;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 
 import android.app.Activity;
 import android.media.AudioManager;
@@ -10,29 +12,54 @@ import android.media.MediaPlayer.OnPreparedListener;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
-import douzi.android.view.LrcView1;
-import douzi.android.view.LrcView1.LrcRow;
-import douzi.android.view.LrcView1.OnLrcViewListener;
+import douzi.android.view.LrcView;
+import douzi.android.view.LrcView.LrcRow;
+import douzi.android.view.LrcView.OnLrcViewListener;
 
 public class MainActivity extends Activity {
 
 	public final static String TAG = "MainActivity";
-	LrcView1 mLrcView;
+	LrcView mLrcView;
 	MediaPlayer mPlayer;
 	private boolean mIsPlaying = false;
+	
+	
+    public String getFromAssets(String fileName){ 
+        try { 
+             InputStreamReader inputReader = new InputStreamReader( getResources().getAssets().open(fileName) ); 
+            BufferedReader bufReader = new BufferedReader(inputReader);
+            String line="";
+            String Result="";
+            while((line = bufReader.readLine()) != null){
+            	if(line.trim().equals(""))
+            		continue;
+            	Result += line + "\r\n";
+            }
+            return Result;
+        } catch (Exception e) { 
+            e.printStackTrace(); 
+        }
+        return "";
+    } 
 	
 	
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mLrcView = new LrcView1(this, null);
-        mLrcView.setBackgroundResource(R.drawable.jb_bg);
+        mLrcView = new LrcView(this, null);
+//        mLrcView.setBackgroundResource(R.drawable.jb_bg);
         setContentView(mLrcView);
-        String path = "/sdcard/xue.lrc";
+        String path = "file:///android_asset/test.lrc";
+		Log.d(TAG, "lrc path:" + path);
+        
         String mp3Path = "/sdcard/xuebuhui.mp3";
-        File file = new File(path);
-        mLrcView.beginLoadLrc(file);
-       
+        
+        String lrc = getFromAssets("test.lrc");
+        Log.d(TAG, "lrc:" + lrc);
+        
+        mLrcView.loadLrc(lrc);
+        
+        startPlay();
     
         mPlayer = new MediaPlayer();
         try {
@@ -79,7 +106,7 @@ public class MainActivity extends Activity {
     
     private  void startPlay(){
     	if(mIsPlaying == false){
-    		mPlayer.start();
+//    		mPlayer.start();
     		mLrcView.beginLrcPlay();
     		mIsPlaying = true;
     	}
