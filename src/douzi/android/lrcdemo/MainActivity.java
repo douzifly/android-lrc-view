@@ -1,32 +1,33 @@
 package douzi.android.lrcdemo;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import android.app.Activity;
-import android.media.AudioManager;
-import android.media.MediaPlayer;
-import android.media.MediaPlayer.OnPreparedListener;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
+import android.view.View;
+import douzi.android.view.DefaultLrcBuilder;
+import douzi.android.view.ILrcBuilder;
+import douzi.android.view.ILrcView;
+import douzi.android.view.LrcRow;
 import douzi.android.view.LrcView;
-import douzi.android.view.LrcView.LrcRow;
-import douzi.android.view.LrcView.OnLrcViewListener;
 
 public class MainActivity extends Activity {
 
 	public final static String TAG = "MainActivity";
-	LrcView mLrcView;
-	MediaPlayer mPlayer;
-	private boolean mIsPlaying = false;
-	
+	ILrcView mLrcView;
+    private int mPalyTimerDuration = 1000;
+    private Timer mTimer;
+    private TimerTask mTask;
 	
     public String getFromAssets(String fileName){ 
         try { 
-             InputStreamReader inputReader = new InputStreamReader( getResources().getAssets().open(fileName) ); 
+            InputStreamReader inputReader = new InputStreamReader( getResources().getAssets().open(fileName) ); 
             BufferedReader bufReader = new BufferedReader(inputReader);
             String line="";
             String Result="";
@@ -47,71 +48,18 @@ public class MainActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mLrcView = new LrcView(this, null);
-//        mLrcView.setBackgroundResource(R.drawable.jb_bg);
-        setContentView(mLrcView);
-        String path = "file:///android_asset/test.lrc";
-		Log.d(TAG, "lrc path:" + path);
-        
-        String mp3Path = "/sdcard/xuebuhui.mp3";
-        
+        setContentView((View) mLrcView);
+        //file:///android_asset/test.lrc;
         String lrc = getFromAssets("test.lrc");
         Log.d(TAG, "lrc:" + lrc);
         
-        mLrcView.loadLrc(lrc);
+        ILrcBuilder builder = new DefaultLrcBuilder();
+        List<LrcRow> rows = builder.getLrcRows(lrc);
         
-        startPlay();
-    
-        mPlayer = new MediaPlayer();
-        try {
-			mPlayer.setDataSource(mp3Path);
-			mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-			mPlayer.setOnPreparedListener(new OnPreparedListener() {
-				
-				public void onPrepared(MediaPlayer arg0) {
-					Log.d(TAG,"onPrepared");
-					startPlay();
-				}
-			});
-		} catch (IllegalArgumentException e) {
-			e.printStackTrace();
-		} catch (SecurityException e) {
-			e.printStackTrace();
-		} catch (IllegalStateException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-        
-        mLrcView.setOnLrcViewSeekListener(new OnLrcViewListener() {
-			
-			public void onSeek(int position, LrcRow row) {
-				mPlayer.seekTo((int)row.time);
-			}
-
-			public void didLrcLoad(boolean sucess) {
-				Log.d(TAG, "lrc loaded:" + sucess);
-				setTitle("Lrc Downloaded");
-				if(mIsPlaying){
-					if(mPlayer != null){
-						mLrcView.timerSeekTo(mPlayer.getCurrentPosition());
-					}
-				}
-			}
-
-		});
-        
-        mPlayer.prepareAsync();
-        setTitle("Lrc Downloading");
+        mLrcView.setLrc(rows);
+        beginLrcPlay();
     }
     
-    private  void startPlay(){
-    	if(mIsPlaying == false){
-//    		mPlayer.start();
-    		mLrcView.beginLrcPlay();
-    		mIsPlaying = true;
-    	}
-    }
-
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.activity_main, menu);
@@ -121,12 +69,43 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
     	super.onDestroy();
-    	if(mPlayer != null){
-    		mPlayer.stop();
-    		mPlayer.release();
-    		mLrcView.stopLrcPlay();
-    		mPlayer = null;
-    	}
     }
     
+      
+    // emulate music play
+    public void beginLrcPlay(){
+        if(mTimer == null){
+            mTimer = new Timer();
+            mTask = new LrcTask();
+            mTimer.scheduleAtFixedRate(mTask, 0, mPalyTimerDuration);
+        }
+    }
+    
+    public void stopLrcPlay(){
+        if(mTimer != null){
+            mTimer.cancel();
+            mTimer = null;
+        }
+    }
+    
+    class LrcTask extends TimerTask{
+        
+        long beginTime = -1;
+        
+        @Override
+        public void run() {
+            if(beginTime == -1) {
+                beginTime = System.currentTimeMillis();
+            }
+            
+            final long timePassed = System.currentTimeMillis() - beginTime;
+            MainActivity.this.runOnUiThread(new Runnable() {
+                
+                public void run() {
+                    mLrcView.seekLrcToTime(timePassed);
+                }
+            });
+           
+        }
+    };
 }

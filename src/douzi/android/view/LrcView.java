@@ -1,16 +1,6 @@
 package douzi.android.view;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -18,7 +8,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Paint.Align;
 import android.graphics.PointF;
-import android.os.AsyncTask;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -29,7 +18,7 @@ import android.view.View;
  * @author douzifly
  *
  */
-public class LrcView extends View{
+public class LrcView extends View implements ILrcView{
 	
 	public final static String TAG = "LrcView";
 	
@@ -41,7 +30,6 @@ public class LrcView extends View{
 	public final static int DISPLAY_MODE_SCALE = 2;
 
 	private List<LrcRow> mLrcRows; 	// all lrc rows of one lrc file
-	private ILrcBuilder mLrcBuilder; 
 	private int mMinSeekFiredOffset = 10; // min offset for fire seek action, px;
 	private int mHignlightRow = 0;   // current singing row , should be highlighted.
 	private int mHignlightRowColor = Color.YELLOW; 
@@ -57,8 +45,8 @@ public class LrcView extends View{
 	private int mPaddingY = 10;		// padding of each row
 	private int mSeekLinePaddingX = 0; // Seek line padding x
 	private int mDisplayMode = DISPLAY_MODE_NORMAL;
-	private OnLrcViewListener mLrcViewListener;
-	private int mPalyTimerDuration = 200;
+	private LrcViewListener mLrcViewListener;
+	
 	private String mLoadingLrcTip = "Downloading lrc...";
 	
 	private Paint mPaint;
@@ -69,7 +57,7 @@ public class LrcView extends View{
 		mPaint.setTextSize(mLrcFontSize);
 	}
 	
-	public void setOnLrcViewSeekListener(OnLrcViewListener l){
+	public void setListener(LrcViewListener l){
 		mLrcViewListener = l;
 	}
 	
@@ -77,122 +65,8 @@ public class LrcView extends View{
 		mLoadingLrcTip = text;
 	}
 	
-	public void setLrcBuilder(ILrcBuilder lrcBuilder){
-		mLrcBuilder = lrcBuilder;
-	}
-	
-	private void checkLrcBuilder(){
-		if(mLrcBuilder == null){
-			mLrcBuilder = new DefaultLrcBuilder();
-		}
-	}
-	
-	private Timer mTimer;
-	private TimerTask mTask;
-	private int mPrevHighlihgtRow = -1;
-	private long mStartTime; // mills when start play ,used to calculate play passed time
-	private long mPassedTime; // mills between now and start
-	private long mSeekOffset = 0; // seek offset
-	
-	public void timerSeekTo(long newBegin){
-		mSeekOffset = newBegin;
-		mStartTime = new Date().getTime();
-		// sometimes ,may be seek to last row and timer has been stopped,so restart timer
-		beginLrcPlay();
-	}
-	
-	class LrcTask extends TimerTask{
-		boolean firstRun = true;
-		
-		@Override
-		public void run() {
-			if(firstRun){
-				firstRun = false; 
-				Date date = new Date();
-				mStartTime = date.getTime();
-			}
-			if(mHignlightRow == mLrcRows.size() - 1){
-				// last row
-				stopLrcPlay();
-			}
-			Date date = new Date();
-			mPassedTime = date.getTime() - mStartTime + mSeekOffset;
-			Log.d(TAG,"timePassed:"+mPassedTime);
-			int i = mHignlightRow;
-			for(; i < mLrcRows.size() ; i++){
-				long time = mLrcRows.get(i).time;
-				if(time < mPassedTime + mPalyTimerDuration && time > mPassedTime - mPalyTimerDuration){
-					mHignlightRow = i;
-					if(mHignlightRow != mPrevHighlihgtRow){
-						postInvalidate();
-						mPrevHighlihgtRow = mHignlightRow;
-					}
-					break;
-				}
-			}
-		}
-	};
-	
-	public void beginLrcPlay(){
-		if(mLrcRows == null || mLrcRows.size() == 0){
-			return;
-		}
-		if(mTimer == null){
-			mTimer = new Timer();
-			mTask = new LrcTask();
-			mTimer.scheduleAtFixedRate(mTask, 0, mPalyTimerDuration);
-		}
-	}
-	
-	public void stopLrcPlay(){
-		if(mTimer != null){
-			mTimer.cancel();
-			mTimer = null;
-		}
-	}
-	
-	/**
-	 * Asynchronous load LRC file
-	 * @param lrcFile
-	 */
-	public void beginLoadLrc(File lrcFile){
-		checkLrcBuilder();
-		new LoadLrcTask().execute(lrcFile);
-	}
-	
-	public void loadLrc(String lrc){
-		checkLrcBuilder();
-		mLrcRows = mLrcBuilder.getLrcRows(lrc);
-		invalidate();
-	}
-	
-	class LoadLrcTask extends AsyncTask<File, Void, Void>{
-
-		@Override
-		protected Void doInBackground(File... params) {
-			try {
-				//assume network download
-				Thread.sleep(500);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			mLrcRows = mLrcBuilder.getLrcRows(params[0]);
-			return null;
-		}
-		
-		@Override
-		protected void onPostExecute(Void result) {
-			invalidate();
-			if(mLrcViewListener != null){
-				mLrcViewListener.didLrcLoad(mLrcRows != null);
-			}
-		}
-		
-	}
-	
 	@Override
 	protected void onDraw(Canvas canvas) {
-		Log.d(TAG,"onDraw");
 		final int height = getHeight(); // height of this view
 		final int width = getWidth() ; // width of this view
 		if(mLrcRows == null || mLrcRows.size() == 0){
@@ -256,11 +130,15 @@ public class LrcView extends View{
 		}
 	}
 	
-	private void seekTo(int row){
-		LrcRow lrcRow = mLrcRows.get(row);
-		timerSeekTo(lrcRow.time);
+	public void seekLrc(int position) {
+	    if(mLrcRows == null || position < 0 || position > mLrcRows.size()) {
+	        return;
+	    }
+		LrcRow lrcRow = mLrcRows.get(position);
+		mHignlightRow = position;
+		invalidate();
 		if(mLrcViewListener != null){
-			mLrcViewListener.onSeek(row, lrcRow);
+			mLrcViewListener.onLrcSeeked(position, lrcRow);
 		}
 	}
 	
@@ -303,7 +181,7 @@ public class LrcView extends View{
 		case MotionEvent.ACTION_CANCEL:
 		case MotionEvent.ACTION_UP:
 			if(mDisplayMode == DISPLAY_MODE_SEEK){
-				seekTo(mHignlightRow);
+				seekLrc(mHignlightRow);
 			}
 			mDisplayMode = DISPLAY_MODE_NORMAL;
 			invalidate();
@@ -408,172 +286,33 @@ public class LrcView extends View{
 		else 
 			return -(int)(maxOffset / 10);
 	}
-	
-	
-	/** one row of LRC data */
-	public static class LrcRow implements Comparable<LrcRow>{
-		public final static String TAG = "LrcRow";
-		
-		/** begin time of this lrc row */
-		public long time;
-		/** content of this lrc */
-		public String content;
-		
-		public String strTime;
-		
-		public LrcRow(){}
-		
-		public LrcRow(String strTime,long time,String content){
-			this.strTime = strTime;
-			this.time = time;
-			this.content = content;
-			Log.d(TAG,"strTime:" + strTime + " time:" + time + " content:" + content);
-		}
-		
-		/**
-		 *  create LrcRows by standard Lrc Line , if not standard lrc line,
-		 *  return false<br />
-		 *  [00:00:20] balabalabalabala
-		 */
-		public static List<LrcRow> createRows(String standardLrcLine){
-			try{
-				if(standardLrcLine.indexOf("[") != 0 || standardLrcLine.indexOf("]") != 9 ){
-					return null;
-				}
-				int lastIndexOfRightBracket = standardLrcLine.lastIndexOf("]");
-				String content = standardLrcLine.substring(lastIndexOfRightBracket + 1, standardLrcLine.length());
-				
-				// times [mm:ss.SS][mm:ss.SS] -> *mm:ss.SS**mm:ss.SS*
-				String times = standardLrcLine.substring(0,lastIndexOfRightBracket + 1).replace("[", "-").replace("]", "-");
-				String arrTimes[] = times.split("-");
-				List<LrcRow> listTimes = new ArrayList<LrcView.LrcRow>();
-				for(String temp : arrTimes){
-					if(temp.trim().length() == 0){
-						continue;
-					}
-					LrcRow lrcRow = new LrcRow(temp, timeConvert(temp), content);
-					listTimes.add(lrcRow);
-				}
-				return listTimes;
-			}catch(Exception e){
-				Log.e(TAG,"createRows exception:" + e.getMessage());
-				return null;
-			}
-		}
-		
-		private static long timeConvert(String timeString){
-			timeString = timeString.replace('.', ':');
-			String[] times = timeString.split(":");
-			// mm:ss:SS
-			return Integer.valueOf(times[0]) * 60 * 1000 +
-					Integer.valueOf(times[1]) * 1000 +
-					Integer.valueOf(times[2]) ;
-		}
 
-		public int compareTo(LrcRow another) {
-			return (int)(this.time - another.time);
-		}
-		
-		
-		
-	}
-	
-	/** default lrc builder,convert raw lrc string to lrc rows */
-	public static class DefaultLrcBuilder implements  ILrcBuilder{
-		static final String TAG = "DefaultLrcBuilder";
-		public List<LrcRow> getLrcRows(String rawLrc) {
-			Log.d(TAG,"getLrcRows by rawString");
-			if(rawLrc == null || rawLrc.length() == 0){
-				Log.e(TAG,"getLrcRows rawLrc null or empty");
-				return null;
-			}
-			StringReader reader = new StringReader(rawLrc);
-			BufferedReader br = new BufferedReader(reader);
-			String line = null;
-			List<LrcRow> rows = new ArrayList<LrcView.LrcRow>();
-			try{
-				do{
-					line = br.readLine();
-					Log.d(TAG,"lrc raw line:" + line);
-					if(line != null && line.length() > 0){
-						List<LrcRow> lrcRows = LrcRow.createRows(line);
-						if(lrcRows != null && lrcRows.size() > 0){
-							for(LrcRow row : lrcRows){
-								rows.add(row);
-							}
-						}
-					}
-					
-				}while(line != null);
-				if( rows.size() > 0 ){
-					// sort by time:
-					Collections.sort(rows);
-				}
-				
-			}catch(Exception e){
-				Log.e(TAG,"parse exceptioned:" + e.getMessage());
-				return null;
-			}finally{
-				try {
-					br.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				reader.close();
-			}
-			return rows;
-		}
-		public List<LrcRow> getLrcRows(File rawLrcFile) {
-			Log.d(TAG,"getLrcRows by rawFile");
-			if(rawLrcFile == null || !rawLrcFile.exists() || !rawLrcFile.canRead()){
-				Log.e(TAG,"getLrcRows rawFile null or not exists or can not read");
-				return null;
-			}
-			FileInputStream fis = null;
-			try{
-				int fileLen = (int)rawLrcFile.length();
-				byte[] buffer = new byte[(int)rawLrcFile.length()];
-				fis = new FileInputStream(rawLrcFile);
-				int totalReaded = 0;
-				int readThisTime;
-				while(totalReaded < fileLen){
-					readThisTime = fis.read(buffer, totalReaded, fileLen - totalReaded);
-					if(readThisTime == -1){
-						break;
-					}else{
-						totalReaded += readThisTime;
-					}
-				}
-				String rawLrcContent = new String(buffer);
-				return getLrcRows(rawLrcContent);
-			}catch(Exception e){
-				return null;
-			}finally{
-				if(fis != null){
-					try {
-						fis.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		
-		
-	}
-	
-	public static interface ILrcBuilder{
-		public List<LrcRow> getLrcRows(String rawLrc);
-		public List<LrcRow> getLrcRows(File rawLrcFile);
-	}
-	
-	/** callback defines for LrcView */
-	public static interface OnLrcViewListener{
-		/** when sought */
-		public void onSeek(int position,LrcRow row);
-		
-		/** called after lrc load complete,maybe failed */
-		public void didLrcLoad(boolean sucess);
-	}
-	
+    public void setLrc(List<LrcRow> lrcRows) {
+        mLrcRows = lrcRows;
+        invalidate();
+    }
+
+    public void seekLrcToTime(long time) {
+        if(mLrcRows == null || mLrcRows.size() == 0) {
+            return;
+        }
+        
+        if(mDisplayMode != DISPLAY_MODE_NORMAL) {
+            // touching
+            return;
+        }
+        
+        Log.d(TAG, "seekLrcToTime:" + time);
+        // find row
+        for(int i = 0; i < mLrcRows.size(); i++) {
+            LrcRow current = mLrcRows.get(i);
+            LrcRow next = i + 1 == mLrcRows.size() ? null : mLrcRows.get(i + 1);
+            
+            if((time >= current.time && next != null && time < next.time)
+                    || (time > current.time && next == null)) {
+                seekLrc(i);
+                return;
+            }
+        }
+    }
 }
