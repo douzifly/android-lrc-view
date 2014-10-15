@@ -13,7 +13,9 @@
         android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" >
         <activity
             android:name=".MainActivity"
-            android:label="LrcViewDemo" >
+            android:label="LrcViewDemo" 
+            android:screenOrientation="portrait"
+            >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
